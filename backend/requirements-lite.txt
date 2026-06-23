@@ -1,0 +1,9 @@
+# 轻量版依赖（无 PaddleOCR，适合 Vercel/Railway 免费部署）
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.1
+openai==1.59.3
+Pillow==11.1.0
+numpy==2.2.1

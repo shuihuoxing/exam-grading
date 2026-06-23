@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# 运行时生成的数据
+backend/_data/
+_data/
+
+# Node
+node_modules/
+frontend/dist/
+
+# 其他
+.DS_Store
+*.log
