@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["python312", "gcc", "libstdc++"]
+
+[phases.install]
+cmds = ["pip install -r requirements-lite.txt"]
+
+[phases.build]
+cmds = ["echo 'build done'"]
+
+[phases.start]
+cmd = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
