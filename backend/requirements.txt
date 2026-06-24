@@ -1,16 +1,4 @@
-# fastapi==0.115.6
-# uvicorn[standard]==0.34.0
-# python-multipart==0.0.20
-# pydantic==2.10.4
-# pydantic-settings==2.7.1
-# openai==1.59.3          # DeepSeek 兼容 OpenAI 接口
-# pdf2image==1.17.0       # PDF 转图片（需系统安装 poppler）
-# Pillow==11.1.0
-# numpy==2.2.1
-# opencv-python-headless==4.11.0.86
-# paddlepaddle==3.0.0     # PaddleOCR 依赖（Windows 安装见 README）
-# paddleocr==2.9.1
-# 轻量版依赖（无 PaddleOCR，适合 Vercel/Railway 免费部署）
+# 轻量版（无 PaddleOCR，适合 Railway 免费部署）
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
