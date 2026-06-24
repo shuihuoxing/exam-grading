@@ -119,13 +119,19 @@ def _llm_analysis(pages):
     return vlm._call_text("你是学科教师，根据批改结果深度分析。", "\n".join(context_lines) + "\n分析知识点、错误类型、薄弱环节、建议。")
 
 
-def _detailed_per_question_analysis(pages):
+def _detailed_per_question_analysis(pages, student_image=None):
     wrong = [q for page in pages for q in page.questions if q.status in ("incorrect", "partial")]
     if not wrong:
         return
-    system = "你是学科教师。为每道错题写解析：1.为什么错 2.正确用法 3.记忆技巧。每题1-2句。"
     lines = [f"第{q.qid}题（{_TYPE_CN.get(q.type, q.type)}）：正确答案「{q.correct_answer}」，学生答「{q.student_answer or '未作答'}」" for q in wrong]
-    result = vlm._call_text(system, "\n".join(lines) + "\n逐题输出，格式：第X题：为什么错。正确用法。记忆技巧。")
+    context = "\n".join(lines)
+    if student_image:
+        system = "你是学科教师。先看试卷图片识别每道错题的题干，再为每道错题写解析：1.为什么错 2.正确用法 3.记忆技巧。每题1-2句。"
+        user = f"错题列表：\n{context}\n\n请看试卷图片，识别每道错题的题干，逐题输出解析。\n格式：第X题：（题干摘要）为什么错。正确用法。记忆技巧。"
+        result = vlm._call_with_image(student_image, system, user)
+    else:
+        system = "你是学科教师。为每道错题写解析：1.为什么错 2.正确用法 3.记忆技巧。每题1-2句。"
+        result = vlm._call_text(system, context + "\n逐题输出，格式：第X题：为什么错。正确用法。记忆技巧。")
     if not result:
         return
     import re as _re
