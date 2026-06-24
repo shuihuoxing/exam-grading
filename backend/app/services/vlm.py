@@ -207,6 +207,28 @@ def _call_with_image(image, system, user):
     except Exception:
         return ""
 
+def _call_with_image(image: Path, system: str, user: str) -> str:
+    """MiMo 图片+文本调用。失败返回空字符串。"""
+    client = _get_client()
+    t0 = time.time()
+    _log(f"call_with_image model={settings.mimo_model} image={image.name}")
+    try:
+        resp = client.chat.completions.create(
+            model=settings.mimo_model,
+            messages=[{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": _image_data_url(image)}},
+                {"type": "text", "text": f"[系统指令]{system}\n\n{user}"},
+            ]}],
+            temperature=0.3, max_completion_tokens=3000,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        _log(f"call_with_image ok in {time.time()-t0:.1f}s")
+        return text
+    except Exception as e:
+        _log(f"call_with_image fail: {type(e).__name__}: {str(e)[:100]}")
+        return ""
+
+
 def _call_text(system: str, user: str) -> str:
     """MiMo 纯文本调用（不传图片）。失败返回空字符串。"""
     client = _get_client()
