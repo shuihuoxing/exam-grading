@@ -133,6 +133,7 @@ def grade_question(ans: AnswerItem, sq: StudentQuestion | None) -> QuestionResul
         "box": sq.box if sq else [0, 0, 0, 0],
         "student_answer": answer_text,
         "correct_answer": ans.correct_answer,
+        "question_text": (sq.question_text if sq else ""),
     }
 
     if sq is None:

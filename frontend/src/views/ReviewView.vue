@@ -43,12 +43,14 @@
     <a-row :gutter="16">
       <a-col :span="16">
         <AnnotationCanvas
+          :key="renderKey"
           ref="canvasRef"
           :page="currentPage"
           :selected-qid="selectedQid"
           :placement-mode="placementMode"
           @select="(qid) => (selectedQid = qid)"
           @place="onPlace"
+          @edit-analysis="onEditAnalysis"
         />
       </a-col>
       <a-col :span="8">
@@ -70,6 +72,17 @@
                 <a-radio-button value="partial">部分</a-radio-button>
                 <a-radio-button value="unmatched">未匹配</a-radio-button>
               </a-radio-group>
+            </a-form-item>
+            <a-form-item label="错题解析">
+              <a-textarea
+                v-model:value="editAnalysis"
+                :rows="5"
+                placeholder="输入或修改错题解析"
+                @click.stop
+                @mousedown.stop
+                @input="editAnalysis = $event.target.value"
+                style="font-size: 14px; border: 2px solid #1677ff; border-radius: 4px; cursor: text;"
+              />
             </a-form-item>
             <a-space>
               <a-button type="primary" size="small" @click="saveEdit">保存修改</a-button>
@@ -118,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGradingStore } from '../stores/grading'
 import { analyze, analyzeQuestions } from '../api/client'
@@ -137,10 +150,12 @@ const llmAnalysis = ref('')
 const analyzing = ref(false)
 const placementMode = ref(false)
 const analyzingQuestions = ref(false)
+const renderKey = ref(0)
 
 // 编辑状态
 const editAnswer = ref('')
 const editStatus = ref('correct')
+const editAnalysis = ref('')
 
 const currentPage = computed(() => result.value.pages[Number(pageKey.value)] || result.value.pages[0])
 
@@ -155,6 +170,7 @@ watch(selectedQid, (qid) => {
   if (q) {
     editAnswer.value = q.student_answer || ''
     editStatus.value = q.status || 'correct'
+    editAnalysis.value = q.analysis || ''
   }
 })
 
@@ -177,12 +193,32 @@ function statusText(q) {
 
 function saveEdit() {
   const pi = Number(pageKey.value)
+  const q = editingQ.value
+  const hasBox = q && q.box && q.box[2] > 0 && q.box[3] > 0
+  const wasUnmatched = q && q.status === 'unmatched'
+  const nowGraded = editStatus.value !== 'unmatched'
+
+  // 未匹配题改状态但没坐标 → 进入放置模式
+  if (wasUnmatched && nowGraded && !hasBox) {
+    store.updateQuestion(pi, selectedQid.value, {
+      student_answer: editAnswer.value,
+      status: editStatus.value,
+      analysis: editAnalysis.value,
+      score: editStatus.value === 'correct' ? editingQ.value?.max_score : editStatus.value === 'incorrect' ? 0 : editingQ.value?.score,
+    })
+    placementMode.value = true
+    message.info('请点击试卷上该题的位置放置标记')
+    return
+  }
+
   store.updateQuestion(pi, selectedQid.value, {
     student_answer: editAnswer.value,
     status: editStatus.value,
+    analysis: editAnalysis.value,
     score: editStatus.value === 'correct' ? editingQ.value?.max_score : editStatus.value === 'incorrect' ? 0 : editingQ.value?.score,
   })
   canvasRef.value?.rerender()
+  message.success('已保存')
 }
 
 function exportPng() {
@@ -224,11 +260,18 @@ function onPlace(pos) {
   message.success('标记已放置')
 }
 
+// 画布上直接编辑解析
+function onEditAnalysis(qid, newText) {
+  const pi = Number(pageKey.value)
+  store.updateQuestion(pi, qid, { analysis: newText })
+}
+
 async function generateQuestionAnalysis() {
   if (!result.value?.job) return
   analyzingQuestions.value = true
   try {
     const data = await analyzeQuestions(result.value.job)
+    console.log('解析返回:', data)
     const analyses = data.analyses || {}
     // 更新每题的 analysis 字段
     for (const page of result.value.pages) {
@@ -238,7 +281,9 @@ async function generateQuestionAnalysis() {
         }
       }
     }
-    canvasRef.value?.rerender()
+    await nextTick()
+    renderKey.value++
+    await nextTick()
     message.success('详细解析已生成')
   } catch {
     message.error('解析生成失败，请稍后重试')
@@ -267,6 +312,8 @@ watch(() => result.value?.job, async (job) => {
 .review-page { background: #fff; border-radius: 8px; }
 .panel { max-height: 65vh; overflow: auto; }
 .edit-panel { margin-bottom: 12px; border: 1px solid #91caff; background: #e6f4ff; }
+:deep(.edit-panel .ant-card-body) { max-height: 50vh; overflow: auto; }
+:deep(.edit-panel textarea) { border: 2px solid #1677ff !important; font-size: 14px !important; z-index: 10; position: relative; pointer-events: auto !important; }
 .summary-card { margin-bottom: 16px; background: #f6ffed; border: 1px solid #b7eb8f; }
 .summary-text {
   font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;

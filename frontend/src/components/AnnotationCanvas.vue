@@ -7,14 +7,14 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { Canvas, Path, Text, Group, FabricImage, Shadow } from 'fabric'
+import { Canvas, Path, Text, IText, Group, FabricImage, Shadow } from 'fabric'
 
 const props = defineProps({
   page: { type: Object, required: true },
   selectedQid: { type: String, default: '' },
   placementMode: { type: Boolean, default: false },
 })
-const emit = defineEmits(['select', 'place'])
+const emit = defineEmits(['select', 'place', 'edit-analysis'])
 
 const wrapRef = ref(null)
 const canvasRef = ref(null)
@@ -102,17 +102,15 @@ async function render() {
       continue
     }
 
-    // ✓/× 标记
+    // ✓/× 标记 + 正确答案（合成 Group，整体拖动）
     const pathD = q.status === 'correct' ? checkPath(0, 0) : crossPath(0, 0)
     const mark = new Path(pathD, {
       stroke: color, strokeWidth: 3.5, fill: 'transparent',
       strokeLineCap: 'round', strokeLineJoin: 'round',
       originX: 'left', originY: 'top',
     })
-
     const children = [mark]
 
-    // 错题：合成 Group（× + 正确答案 + 解析，整体拖动）
     if (q.status === 'incorrect' && q.correct_answer) {
       const ansText = new Text(q.correct_answer, {
         left: 18, top: -3,
@@ -121,27 +119,6 @@ async function render() {
         originX: 'left', originY: 'top',
       })
       children.push(ansText)
-
-      if (q.analysis) {
-        // 自动换行：每行最多 35 个字符（减少行数）
-        const maxLen = 35
-        const lines = []
-        let remaining = q.analysis
-        while (remaining.length > maxLen) {
-          lines.push(remaining.slice(0, maxLen))
-          remaining = remaining.slice(maxLen)
-        }
-        lines.push(remaining)
-        const wrapped = lines.join('\n')
-        const hintText = new Text(wrapped, {
-          left: 18, top: 15,
-          fontSize: 11, fontFamily: 'sans-serif',
-          fill: '#262626',
-          lineHeight: 1.2,
-          originX: 'left', originY: 'top',
-        })
-        children.push(hintText)
-      }
     }
 
     const group = new Group(children, {
@@ -152,6 +129,28 @@ async function render() {
     group.qid = q.qid
     group.on('mousedown', () => emit('select', q.qid))
     canvas.add(group)
+
+    // 解析文字：独立 IText（可双击编辑），放在标记下方
+    if (q.status === 'incorrect' && q.analysis) {
+      const textWidth = natW * 0.6
+      const hintText = new IText(q.analysis, {
+        left: mx + 18 * scale, top: my + 20 * scale,
+        fontSize: 18, fontFamily: 'sans-serif',
+        fill: '#000000', fontWeight: 'bold',
+        lineHeight: 1.4, width: textWidth * scale,
+        splitByGrapheme: true,
+        editable: true, selectable: true,
+        editingBorderColor: '#1677ff',
+        cursorColor: '#000000',
+        hoverCursor: 'text',
+        hasControls: false, hasBorders: false,
+        originX: 'left', originY: 'top',
+      })
+      hintText.qid = q.qid
+      hintText.on('editing:exited', () => emit('edit-analysis', q.qid, hintText.text))
+      hintText.on('mousedown', () => emit('select', q.qid))
+      canvas.add(hintText)
+    }
   }
 
   // 放置模式：点击画布 → 发送原图坐标

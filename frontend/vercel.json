@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://exam-grading-production.up.railway.app/api/$1" }
+    { "source": "/api/(.*)", "destination": "https://exam-grading-production.up.railway.app/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "outputDirectory": "dist",
   "installCommand": "npm install",

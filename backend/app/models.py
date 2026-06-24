@@ -31,6 +31,7 @@ class QuestionResult(BaseModel):
     student_answer: str
     correct_answer: str
     analysis: str = ""
+    question_text: str = ""  # 题干原文（供解析用）
 
 
 class PageResult(BaseModel):

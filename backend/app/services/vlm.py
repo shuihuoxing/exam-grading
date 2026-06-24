@@ -99,31 +99,35 @@ def _parse_json(text: str) -> dict:
                 continue
         if answers:
             return {"answers": answers}
-    raise VLMError(f"无法解析模型返回的 JSON：{text[:160]}")
+    # 返回空结果而非报错
+    _log(f"JSON 解析失败，返回空: {text[:100]}")
+    return {"answers": []}
 
 
 def _call(image: Path, prompt: str, max_tokens: int = 2500) -> dict:
     client = _get_client()
-    t0 = time.time()
-    _log(f"call model={settings.mimo_model} image={image.name}")
-    try:
-        resp = client.chat.completions.create(
-            model=settings.mimo_model,
-            messages=[{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": _image_data_url(image)}},
-                {"type": "text", "text": prompt},
-            ]}],
-            max_completion_tokens=max_tokens,
-            temperature=0.0,
-        )
-        data = _parse_json(resp.choices[0].message.content or "")
-        _log(f"ok in {time.time()-t0:.1f}s")
-        return data
-    except VLMError:
-        raise
-    except Exception as e:  # noqa: BLE001
-        _log(f"fail after {time.time()-t0:.1f}s: {type(e).__name__}: {str(e)[:150]}")
-        raise VLMError(f"MiMo 调用失败：{e}")
+    for attempt in range(2):
+        t0 = time.time()
+        _log(f"call model={settings.mimo_model} image={image.name} attempt={attempt+1}")
+        try:
+            resp = client.chat.completions.create(
+                model=settings.mimo_model,
+                messages=[{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": _image_data_url(image)}},
+                    {"type": "text", "text": prompt},
+                ]}],
+                max_completion_tokens=max_tokens,
+                temperature=0.0,
+            )
+            data = _parse_json(resp.choices[0].message.content or "")
+            if data.get("answers"):
+                _log(f"ok in {time.time()-t0:.1f}s ({len(data['answers'])} items)")
+                return data
+            _log(f"empty result, retrying...")
+            continue
+        except Exception as e:  # noqa: BLE001
+            _log(f"fail after {time.time()-t0:.1f}s: {type(e).__name__}: {str(e)[:150]}")
+    return {"answers": []}
 
 
 _STUDENT_PROMPT = (
@@ -157,15 +161,14 @@ def read_student_answers(image: Path) -> dict[str, str]:
 
 
 _STUDENT_BOX_PROMPT = (
-    "请逐题完成两件事：\n"
-    "1. 识别学生填写的答案（选择题括号里的字母，填空题手写内容）\n"
-    "2. 给出该题题号在图中的精确像素坐标\n\n"
-    "重要规则：\n"
-    "- qid 必须是纯数字（如 \"26\" \"31\" \"35\"），不要带括号、句点或其他字符\n"
-    "- box = [x, y, w, h]，x,y 是题号数字左上角的像素坐标，w,h 是题号区域宽高\n"
-    "- 坐标要精确到像素\n"
-    "- 未作答的题 answer 为空字符串，box 为 [0,0,0,0]\n\n"
-    "返回JSON：{\"answers\":[{\"qid\":\"纯数字题号\",\"answer\":\"学生答案\",\"box\":[x,y,w,h]}]}"
+    "请逐题识别试卷信息：\n"
+    "1. 题号（纯数字）、学生答案、题号像素坐标\n"
+    "2. 题干原文（完整抄录题目的文字内容，用于后续解析）\n\n"
+    "规则：\n"
+    "- qid 必须纯数字\n"
+    "- box = [x, y, w, h]，题号左上角像素坐标\n"
+    "- question: 抄录该题的完整题干文字（选择题包含选项内容）\n\n"
+    "返回JSON：{\"answers\":[{\"qid\":\"数字\",\"answer\":\"学生答案\",\"box\":[x,y,w,h],\"question\":\"题干原文\"}]}"
 )
 
 
@@ -175,8 +178,13 @@ def read_student_answers_with_boxes(image: Path, img_w: int = 0, img_h: int = 0)
     if img_w and img_h:
         prompt += f"\n（图片尺寸：{img_w}x{img_h} 像素）"
     data = _call(image, prompt, max_tokens=3000)
+    # 兼容：VLM 可能返回 {"answers":[...]} 或直接返回 [...]
+    if isinstance(data, list):
+        answers_list = data
+    else:
+        answers_list = data.get("answers", [])
     out: dict[str, dict] = {}
-    for a in data.get("answers", []):
+    for a in answers_list:
         qid_raw = str(a.get("qid", "")).strip()
         # 兜底：提取纯数字题号（VLM 可能返回 "31." "(C)31." 等格式）
         qid = re.sub(r"[^\d]", "", qid_raw)
@@ -188,6 +196,7 @@ def read_student_answers_with_boxes(image: Path, img_w: int = 0, img_h: int = 0)
         out[qid] = {
             "answer": str(a.get("answer", "")).strip(),
             "box": [float(v) for v in box],
+            "question": str(a.get("question", "")).strip(),
         }
     return out
 

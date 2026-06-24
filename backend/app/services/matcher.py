@@ -35,6 +35,7 @@ class StudentQuestion:
     text: str              # 该题题干+作答文本（拼接）
     answer: str            # 提取出的"学生作答"（选择/判断为字母；为空表示未提取到）
     box: list[float]       # 该题所有文本块 bbox 的并集 [x,y,w,h]
+    question_text: str = ""  # VLM 识别的题干原文（供解析用）
 
 
 def _union_boxes(boxes: list[list[float]]) -> list[float]:
