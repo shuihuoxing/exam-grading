@@ -191,6 +191,21 @@ def read_student_answers_with_boxes(image: Path, img_w: int = 0, img_h: int = 0)
         }
     return out
 
+def _call_with_image(image, system, user):
+    """MiMo 图片+文本调用"""
+    client = _get_client()
+    try:
+        resp = client.chat.completions.create(
+            model=settings.mimo_model,
+            messages=[{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": _image_data_url(image)}},
+                {"type": "text", "text": f"[系统指令]{system}\n\n{user}"},
+            ]}],
+            temperature=0.3, max_completion_tokens=3000,
+        )
+        return (resp.choices[0].message.content or "").strip()
+    except Exception:
+        return ""
 
 def _call_text(system: str, user: str) -> str:
     """MiMo 纯文本调用（不传图片）。失败返回空字符串。"""
