@@ -93,7 +93,12 @@ def analyze_questions(job: str,
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取结果失败：{e}")
 
-    pipeline._detailed_per_question_analysis(pages)
+    job_dir = settings.data_path / "jobs" / job
+    stu_img = None
+    for f in job_dir.glob("student_upload*"):
+        stu_img = f
+        break
+    pipeline._detailed_per_question_analysis(pages, student_image=stu_img)
 
     # 更新保存的结果
     data["pages"] = [p.model_dump() for p in pages]
