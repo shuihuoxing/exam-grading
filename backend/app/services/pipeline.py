@@ -116,7 +116,7 @@ def _llm_analysis(pages):
                 context_lines.append(f"第{q.qid}题：学生答「{q.student_answer or '未作答'}」，满分{q.max_score}得{q.score}分。")
     if not context_lines:
         return ""
-    return llm.chat_text("你是学科教师，根据批改结果深度分析。", "\n".join(context_lines) + "\n分析知识点、错误类型、薄弱环节、建议。")
+    return vlm._call_text("你是学科教师，根据批改结果深度分析。", "\n".join(context_lines) + "\n分析知识点、错误类型、薄弱环节、建议。")
 
 
 def _detailed_per_question_analysis(pages):
